@@ -17,12 +17,12 @@ body {
 }
 
 a {
-	color: 	#707070;
+	color: 	#888888;
 	text-decoration: none;
 }
 
 a:hover {
-	color: #888888;
+	color: #949494;
 	text-decoration: underline;
 }
 
@@ -100,12 +100,12 @@ h2 {
 .posttitle {
 	font: 17px verdana;
 	color: #579;
-	margin: 5px;
+	/*margin: 5px;*/
 }
 
 .date {
 	font-size: 10px;
-	margin-left: 16px;
+	margin-top: 2px;
 }
 
 .img {

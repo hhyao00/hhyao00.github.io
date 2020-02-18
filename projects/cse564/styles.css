@@ -1,0 +1,132 @@
+body {
+ background-color:rgb(255, 255, 255);
+}
+h1, h3, p{
+  text-align:center;
+}
+.axis {
+    font: 13px Arial, sans-serif;
+}
+.graph-svg-component {
+  background-color:white;
+  display: block;
+  margin: auto;
+}
+.axis path, .axis line {
+    fill: none;
+    stroke: #3A3A3A;
+}
+
+/* =================================================== *
+* Menu: www.w3schools.com/howto/howto_css_dropdown_navbar.asp
+* =================================================== */
+
+.navbar {
+  overflow: hidden;
+  background-color: rgb(51, 51, 51);
+  font-family: Arial;
+}
+
+.navbar a {
+  float: left;
+  font-size: 13px;
+  color: white;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+.texthead {
+  float: left;
+  font-size: 13px;
+  font-weight: bolder;
+  color: white;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+.texthead2 {
+  float: right;
+  font-size: 13px;
+  color: white;
+  text-align: right;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+.dropdown {
+  float: left;
+  overflow: hidden;
+}
+
+.dropdown .dropbtn {
+  font-size: 13px;  
+  border: none;
+  outline: none;
+  color: white;
+  padding: 14px 16px;
+  background-color: inherit;
+  font-family: inherit;
+  margin: 0;
+}
+
+.navbar a:hover, .dropdown:hover .dropbtn {
+  background-color: #4b86b4;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  /* box-shadow: 0px 5px 10px 0px rgba(0, 0, 0, 0.096); */
+  border-left: 0.5px solid rgba(138, 138, 138, 0.452);
+  border-right: 0.5px solid rgba(138, 138, 138, 0.452);
+  z-index: 1;
+}
+
+.dropdown-content a {
+  float: none;
+  color: black;
+  /* dropdown menu item padding:
+  top right bottom left */
+  /* margin-top: 2px; */
+  padding: 6px 5px 5px 10px; 
+  text-decoration: none;
+  display: block;
+  text-align: left;
+  border-bottom: 0.5px solid rgba(138, 138, 138, 0.452);
+}
+
+.dropdown-content a:hover {
+  background-color: rgb(233, 233, 233);
+}
+.dropdown:hover .dropdown-content {
+  display: block;
+  outline: #3A3A3A;
+
+}
+
+/* tool tip. This took 8 hours. */
+/* https://bl.ocks.org/gautamjo/42f15332a5402ade4b314504edd31fb5 */
+.tooltip {
+  position: absolute;
+  display: none;
+  width: auto;
+  height: auto;
+  background: rgba(51, 51, 51, 0.932);
+  border: 0 none;
+  border-radius: 4px;
+  color: rgb(255, 255, 255);
+  font-size: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  padding: 5px;
+  text-align: center;
+} 
+
+
+.active {
+  stroke: rgb(81, 218, 133);
+  stroke-width: 20px;
+}

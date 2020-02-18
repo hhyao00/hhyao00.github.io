@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<title>CSE 564 hw 1</title>
+	<link rel="stylesheet" href="styles.css">
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+</head>
+
+<div class="navbar">
+	<item class="texthead">CSE 564 hw1 __ Feb. 2020</item>
+	<!-- <a>CSE 564 assignment 1</a> -->
+	<div class="dropdown">
+		<button class="dropbtn">Categorical_Groupby
+			<i class="fa fa-caret-down"></i>
+		</button>
+		<div class="dropdown-content">
+			<a href="javascript:barGraph('religion')">religion</a>
+			<a href="javascript:barGraph('education')">education</a>
+			<a href="javascript:barGraph('major')">major</a>
+			<a href="javascript:barGraph('familysize')">number of siblings,<br>including self</a>
+			<a href="javascript:barGraph('hand')">left or right handed</a>
+			<a href="javascript:barGraph('race')">race</a>
+			<a href="javascript:barGraph('gender')">gender</a>
+			<a href="javascript:barGraph('married')">marriage status</a>
+			<a href="javascript:barGraph('orientation')">sexual orientation</a>
+			<a href="javascript:barGraph('urban')">resident location</a>
+			<a href="javascript:barGraph('country')">country</a>
+		</div>
+	</div>
+	<div class="dropdown">
+		<button class="dropbtn">Numerical_Groupby
+			<i class="fa fa-caret-down"></i>
+		</button>
+		<div class="dropdown-content">
+			<!-- <a href="javascript:histogram('price')">price</a> -->
+			<a href="javascript:histogram('depression_scaled')">depression anxiety stress scale</a>
+			<a href="javascript:histogram('hyper_sensitive_narcissism_scale')">hypersensitive narcissism scale</a>
+			<a href="javascript:histogram('dark_triad_score')">dark triad personality scale</a>
+			<a href="javascript:histogram('age_all')">age distribution</a>
+			<a href="javascript:histogram('accuracy')">self reported accuracy</a>
+			<!-- <a href="#">Link 2</a>
+			<a href="#">Link 3</a> -->
+		</div>
+	</div>
+	<item class="texthead2">Data from: openpsychometrics.org</item>
+</div>
+
+<body>
+	<!-- Create a div where the graph will take place -->
+	<div class="tooltip"></div>
+	<div id="hw1"></div>
+</body>
+
+<!------------- JAVASCRIPT BELOW ------------->
+
+<script>
+	var displayAll = false;
+	var colors = ['#2a4d69', '#4b86b4', '#CC7C7C', '#EAA7A7', '#63ace5'];
+	var transition_speed = 350;
+	var histogram_on = false;
+
+	var x, y;
+	var xAxis, yAxis;
+	var curr = "";
+	var divTooltip;
+
+	// Sorry, it's ugly. I've done neither javascript nor HTML/CSS before in my life.
+	var tooltip = d3.select("body")
+		.append("div")
+		.attr('id', 'tooltip')
+		.style("position", "absolute")
+		.style("z-index", "10")
+		.style("visibility", "hidden")
+		.style("display", "block")
+		.style("background-color", "rgba(51, 51, 51, 0.90)")
+		.style("border-style", "solid")
+		.style("border-width", "1px")
+		.style("border-color", "black")
+		.style("border-radius", "4px")
+		.style("color", "rgb(255,255,255)")
+		.style("font-family", "Arial")
+		.style("font-size", "13px")
+		.style("padding", "5px 5px");
+
+	// set the dimensions and margins of the graph
+	var margin = { top: 30, right: 30, bottom: 70, left: 60 },
+		width = 1000,
+		height = 500;
+
+	// append the svg object to the body of the page
+	var svg = d3.select("#hw1")
+		.append("svg")
+		.attr("width", width + margin.left + margin.right)
+		.attr("height", height + margin.top + margin.bottom)
+		.append("g")
+		.attr("transform",
+			"translate(" + margin.left + "," + margin.top + ")");
+
+	// ------ end global stuff ------ //
+
+	function init() {
+		// Initialize the axis (for y at least). This is for bar chart.
+		// It would be overwritten for the histogram, then reinit for bar.
+
+		xAxis = svg.append("g")
+			.attr("transform", "translate(0," + height + ")")	// labels will be put here
+		// .call(d3.axisBottom(x).tickSize(0));
+
+		y = d3.scaleLinear()	// add y axis with a height for 0 to 1
+			.domain([0, 1])
+			.range([height, 0]);
+		yAxis = svg.append("g")
+			.call(d3.axisLeft(y).tickSize(0));
+
+		// y axis label, doesn't change name.
+		svg.append("g")
+			.attr("class", "y axis")
+			.append("text")
+			.attr("y", 6)
+			.attr("x", 45)
+			.attr("dy", "6px")
+			.style("text-anchor", "end")
+			.text("Score");
+
+		svg.enter()
+	}
+
+	// ------- HISTOGRAM --------- //
+
+
+	function histogram(selectedVar) {
+
+		if (curr == selectedVar) return;
+		else { curr = selectedVar; }
+
+		if (!histogram_on) {
+			histogram_on = true;
+			curr = selectedVar;
+			d3.selectAll("rect").remove();
+			d3.selectAll(".tick").remove(); // removing tick thing took so long
+			d3.selectAll("text")
+				.filter(function (d) {
+					txt = d3.select(this).text()
+					return isNaN(d3.select(this).text())
+						& txt != "Score";
+				}).remove();
+			init();
+		}
+
+		fileName = "https://raw.githubusercontent.com/hhyao00/datasets/master/summary_stats/" + selectedVar + ".csv";
+		d3.csv(fileName, function (data) {
+
+			// X axis
+			x = d3.scaleLinear()
+				.range([0, width])
+				.domain([0, 105]);
+			svg.append("g")
+				.attr("transform", "translate(0," + height + ")")
+				.call(d3.axisBottom(x))
+			xAxis.transition().duration(transition_speed - 50).call(d3.axisBottom(x));
+			yAxis.transition().duration(transition_speed - 50).call(d3.axisLeft(y));
+
+			// x axis label
+			svg.append("g")
+				.attr("class", "x axis")
+				.attr("transform", "translate(0," + height + ")")
+				.append("text")
+				.attr("class", "axis")
+				.attr("transform", "translate(" + width / 2 + "," + margin.bottom / 1.8 + ")")
+				.style("text-anchor", "middle")
+				.text(selectedVar);
+
+			// inner function to redraw the bins if needed
+			// https://www.d3-graph-gallery.com/graph/histogram_binSize.html
+
+			var histogram;
+			var bins;
+			var u;
+
+			function update(nBin) {
+				d3.selectAll("rect").remove();
+				d3.selectAll(".tick").remove();
+				d3.selectAll("text")
+					.filter(function (d) {
+						txt = d3.select(this).text()
+						return isNaN(d3.select(this).text())
+							& txt != "Score"
+							& txt != selectedVar
+					}).remove();
+
+				// set the parameters for the histogram
+				histogram = d3.histogram()
+					.value(function (d) { return d[selectedVar]; })   // the selected numerical value
+					.domain(x.domain())
+					.thresholds(x.ticks(nBin));	// number of bins.
+
+				// And apply this function to data to get the bins
+				bins = histogram(data);
+
+				x = d3.scaleLinear()
+					.range([0, width])
+					.domain([0, 105]);
+				svg.append("g")
+					.attr("transform", "translate(0," + height + ")")
+					.call(d3.axisBottom(x))
+				xAxis.transition().duration(100).call(d3.axisBottom(x));
+
+				// Y axis: scale and draw:
+				y = d3.scaleLinear()
+					.range([height, 0]);
+				y.domain([0, d3.max(bins, function (d) { return d.length })]);
+				svg.append("g")
+					.call(d3.axisLeft(y));
+				yAxis.transition().duration(200).call(d3.axisLeft(y));
+
+				// X axis label
+				svg.append("g")
+					.attr("class", "x axis")
+					.attr("transform", "translate(0," + height + ")")
+					.append("text")
+					.attr("class", "axis")
+					.attr("transform", "translate(" + width / 2 + "," + margin.bottom / 1.8 + ")")
+					.style("text-anchor", "middle")
+					.text(selectedVar);
+
+				u = svg.append("g")
+					.attr("fill", "steelblue")
+					.attr("opacity", "0.9")
+					.selectAll("rect")
+					.data(bins)
+
+				u.enter()
+					.append("rect").merge(u)
+					.call(
+						d3.drag()
+							.on("start", dragstarted)
+							.on("drag", dragged)
+							.on("end", dragended)
+					)
+					.on("mouseover", function (d) {
+						tooltip.style("visibility", "visible")
+						d3.select(this)
+							.attr("fill","#84b8df")
+							.style("stroke", "#84b8df")
+							.style("stroke-width", "3px")
+							.style("stroke-opacity", "0.7");
+					})
+					.on("mousemove", function (d) {
+						const [xMouse, yMouse] = d3.mouse(this);
+						tooltip
+							.style("top", (yMouse) + 50 + "px")
+							.style("left", (xMouse) + 50 + "px")
+							.text("count: " + d.length)
+					})
+					.on("mouseout", function (d) {
+						tooltip.style("visibility", "hidden");
+						d3.select(this).transition().duration(250)
+							.attr("fill","steelblue")
+							.style("stroke-opacity", "0");
+					})
+					.transition()
+					.attr("x", d => x(d.x0) + 1)
+					.attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+					.attr("y", height).transition().duration(transition_speed) // grow from y(0) = height, up.
+					.attr("y", d => y(d.length))
+					.attr("height", d => y(0) - y(d.length));
+					// base histogram: https://observablehq.com/@d3/histogram
+
+				// Delete extra bars
+				u.exit().remove()
+			} // end inner function
+
+
+			// Skeleton used for the dragging option
+			// https://bl.ocks.org/ropeladder/f417602ea76aa17236c6b207cb95059a
+			var originX = -1;
+			var nBin = 50;
+
+			function dragstarted(d) {
+				// console.log("hi")
+				d3.select(this).raise().classed("active", true);
+			}
+
+			function dragged(d) {
+				if (originX == -1) originX = d3.event.x;
+
+				if (originX - d3.event.x < 0) {
+					// console.log("right")
+					// increase the bin width, decrease bin count
+					nBin -= 2
+					if (nBin < 1) nBin = 1
+				}
+				else if (originX - d3.event.x > 0) {
+					// console.log("left")
+					// decrease bin width means increasing bin count
+					nBin += 2
+				}
+				originX = d3.event.x;
+				const [xMouse, yMouse] = d3.mouse(this);
+				tooltip
+					.style("top", (yMouse) + 50 + "px")
+					.style("left", (xMouse) + 50 + "px")
+					.text("number of bins: " + nBin)
+			}
+
+			function dragended(d) {
+				// console.log("endd")
+				originX = -1;
+				d3.select(this).classed("active", false);
+				tooltip.style("visibility", "hidden");
+				update(nBin);
+			}
+
+			update(50);
+		});
+	} // end histogram function
+
+
+
+
+
+
+	// ------- BAR GRAPH --------- //
+	function barGraph(selectedVar) {
+
+		if (selectedVar == curr) { return; }
+		else { curr = selectedVar; }
+
+		// remove and update text areas and update according to if histogram_on
+		svg.selectAll("rect").remove();
+		if (histogram_on) {
+			// need to redo the axis
+			histogram_on = false;
+			svg.selectAll("svg").remove();
+			svg.selectAll("text").remove();
+			d3.selectAll(".tick").remove();
+			init();
+		} else {
+			d3.selectAll("text")
+				.filter(function (d) {
+					// It keeps removing the y-axis, I don't know why
+					// this is so stupid. I hate javascript. why am I in this class.
+					txt = d3.select(this).text()
+					return isNaN(d3.select(this).text())
+						& txt != "Score"
+						& txt != "unspecified"
+						& txt != "other";
+				}).remove();
+		}
+
+		fileName = "https://raw.githubusercontent.com/hhyao00/datasets/master/summary_stats/" + selectedVar + ".csv";
+		d3.csv(fileName, function (data) {
+
+			// sort order thing
+			data.sort(function (b, a) {
+				return a.depression_mean - b.depression_mean;
+			});
+
+			// the actual "columns" aka attributes of row
+			var fields = data.columns.slice(1)
+
+			// what we will group by, this is a column
+			var groupBy = d3.map(data, function (d) { return (d[selectedVar]) }).keys()
+
+			x = d3.scaleBand()		// add x axis
+				.domain(groupBy)
+				.range([0, width])		// width they can span
+				.padding([0.02]);
+			y = d3.scaleLinear()	// add y axis with a height for 0 to 1
+				.domain([0, 1])
+				.range([height, 0]);
+
+			// the y range of values
+			var yRange = [0, d3.max(data, function (d) {
+				return d3.max(fields, function (key) {
+					return d[key];
+				});
+			})];
+			y.domain(yRange).nice();
+
+			// X axis
+			xAxis.transition().duration(transition_speed - 50).call(d3.axisBottom(x));
+			yAxis.transition().duration(transition_speed - 50).call(d3.axisLeft(y));
+
+
+			// color palette = one color per subgroup
+			var color = d3.scaleOrdinal()
+				.domain(fields)
+				.range(colors)
+
+			// per group 
+			x0 = d3.scaleBand()
+				.domain(data.map(d => d[selectedVar]))
+				.rangeRound([10, width - 5])		// where bar begins and ends
+				.paddingInner(.2)					// bar width, higher = thinner
+
+			// per bar in the group
+			x1 = d3.scaleBand()
+				.domain(fields)						// what each bar represents
+				.rangeRound([0, x0.bandwidth()])	// the bars within group can span
+				.padding(0.1)
+
+			// x axis label
+			svg.append("g")
+				.attr("class", "x axis")
+				.attr("transform", "translate(0," + height + ")")
+				.append("text")
+				.attr("class", "axis")
+				.attr("transform", "translate(" + width / 2 + "," + margin.bottom / 1.8 + ")")
+				.style("text-anchor", "middle")
+				.text(selectedVar);
+
+			svg.enter()
+
+			// https://bl.ocks.org/gautamjo/42f15332a5402ade4b314504edd31fb5
+			// The tool tip + multiple mouse events took me probably 8 hours .-.
+			divTooltip = d3.select("div.tooltip")
+
+			var u = svg.append("g")
+				.selectAll("g")
+				.data(data)
+
+			u.enter().append("g")
+				.attr("transform", d => `translate(${x0(d[selectedVar])},0)`)
+				.selectAll("rect")
+				.data(d => fields.map(key => ({ key, value: d[key] })))
+				.enter().append("rect")
+				.on("mouseover", function (d) {
+					divTooltip.style("left", d3.event.pageX - 50 + "px")
+					divTooltip.style("top", d3.event.pageY - 50 + "px")
+					divTooltip.style("display", "block")
+					divTooltip.style("border-style", "solid")
+					divTooltip.style("border-color", "black")
+					divTooltip.style("border-width", "1px")
+
+					var x = d3.event.pageX,
+						y = d3.event.pageY;
+					var elements = document.querySelectorAll(":hover");
+					var l = elements.length - 1;
+					var elementData = elements[l].__data__;
+					divTooltip.html(elementData.key + "<br>" + (+(elementData.value*100)).toFixed(3));
+
+					d3.select(this)
+						.style("stroke", color(d.key))
+						.style("stroke-width", "4px")
+						.style("stroke-opacity", "0.98");
+				})
+				.on("mouseout", function (d) {
+					divTooltip.style("display", "none")
+					d3.select(this).transition().duration(250)
+						.attr("fill", color(d.key))
+						.style("stroke-opacity", "0");
+				})
+				.merge(u)
+				.transition()
+				.duration(transition_speed)
+				.attr("x", d => x1(d.key))
+				.attr("y", height).transition().duration(500)
+				.attr("y", d => y(d.value))
+				.attr("width", x1.bandwidth())
+				.attr("height", d => y(0) - y(d.value))
+				.attr("fill", d => color(d.key))
+				.attr("opacity", "0.9")
+		})
+	}
+
+
+	init();
+
+</script>
+
+</html>
