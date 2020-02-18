@@ -212,9 +212,9 @@
 				y = d3.scaleLinear()
 					.range([height, 0]);
 				y.domain([0, d3.max(bins, function (d) { return d.length })]);
-				svg.append("g")
-					.call(d3.axisLeft(y));
-				yAxis.transition().duration(200).call(d3.axisLeft(y));
+				// svg.append("g")
+					// .call(d3.axisLeft(y));
+				yAxis.transition().duration(transition_speed).call(d3.axisLeft(y));
 
 				// X axis label
 				svg.append("g")
@@ -261,7 +261,7 @@
 							.attr("fill","steelblue")
 							.style("stroke-opacity", "0");
 					})
-					.transition()
+					.transition().duration(transition_speed)
 					.attr("x", d => x(d.x0) + 1)
 					.attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
 					.attr("y", height).transition().duration(transition_speed) // grow from y(0) = height, up.
@@ -458,7 +458,7 @@
 				.transition()
 				.duration(transition_speed)
 				.attr("x", d => x1(d.key))
-				.attr("y", height).transition().duration(500)
+				.attr("y", height).transition().duration(transition_speed)
 				.attr("y", d => y(d.value))
 				.attr("width", x1.bandwidth())
 				.attr("height", d => y(0) - y(d.value))
