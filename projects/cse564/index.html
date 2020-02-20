@@ -59,6 +59,7 @@
 <script>
 	var displayAll = false;
 	var colors = ['#2a4d69', '#4b86b4', '#CC7C7C', '#EAA7A7', '#63ace5'];
+	var lights = ['#496d8a','#629ecc','#de9292']
 	var transition_speed = 350;
 	var histogram_on = false;
 
@@ -243,8 +244,8 @@
 					.on("mouseover", function (d) {
 						tooltip.style("visibility", "visible")
 						d3.select(this)
-							.attr("fill","#84b8df")
-							.style("stroke", "#84b8df")
+							.attr("fill","#93c7ed")
+							.style("stroke", "#93c7ed")
 							.style("stroke-width", "3px")
 							.style("stroke-opacity", "0.7");
 					})
@@ -391,6 +392,10 @@
 				.domain(fields)
 				.range(colors)
 
+			var light = d3.scaleOrdinal()
+				.domain(fields)
+				.range(lights)
+
 			// per group 
 			x0 = d3.scaleBand()
 				.domain(data.map(d => d[selectedVar]))
@@ -444,7 +449,9 @@
 					divTooltip.html(elementData.key + "<br>" + (+(elementData.value*100)).toFixed(3));
 
 					d3.select(this)
-						.style("stroke", color(d.key))
+						.attr("fill",light(d.key))
+					d3.select(this)
+						.style("stroke", light(d.key))
 						.style("stroke-width", "4px")
 						.style("stroke-opacity", "0.98");
 				})
