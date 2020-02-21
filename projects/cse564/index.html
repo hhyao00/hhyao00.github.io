@@ -59,7 +59,7 @@
 <script>
 	var displayAll = false;
 	var colors = ['#2a4d69', '#4b86b4', '#CC7C7C', '#EAA7A7', '#63ace5'];
-	var lights = ['#496d8a','#629ecc','#de9292']
+	var lights = ['#6c8ca8','#629ecc','#de9292']
 	var transition_speed = 350;
 	var histogram_on = false;
 
@@ -450,10 +450,9 @@
 
 					d3.select(this)
 						.attr("fill",light(d.key))
-					d3.select(this)
 						.style("stroke", light(d.key))
 						.style("stroke-width", "4px")
-						.style("stroke-opacity", "0.98");
+						.style("stroke-opacity", "0.90");
 				})
 				.on("mouseout", function (d) {
 					divTooltip.style("display", "none")
