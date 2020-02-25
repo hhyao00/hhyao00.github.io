@@ -59,13 +59,13 @@
 <script>
 	var displayAll = false;
 	var colors = ['#2a4d69', '#4b86b4', '#CC7C7C', '#EAA7A7', '#63ace5'];
-	var lights = ['#6c8ca8','#629ecc','#de9292']
+	var lights = ['#6c8ca8', '#629ecc', '#de9292']
 	var transition_speed = 350;
 	var histogram_on = false;
 
 	var x, y;
 	var xAxis, yAxis;
-	var curr = "";
+	var curr = null;
 	var divTooltip;
 
 	// Sorry, it's ugly. I've done neither javascript nor HTML/CSS before in my life.
@@ -125,6 +125,24 @@
 			.attr("dy", "6px")
 			.style("text-anchor", "end")
 			.text("Score");
+
+		if (curr == null) {
+			svg.append("g")
+			.attr("class", "y axis")
+			.append("text")
+			.attr("y", (height + margin.top + margin.bottom)/5)
+			.attr("x", (width + margin.left + margin.right)/2)
+			.style("text-anchor", "end")
+			.text("^ Hello, please select a chart from the menus above.")
+			
+			svg.append("g")
+			.attr("class", "y axis")
+			.append("text")
+			.attr("y", (height + margin.top + margin.bottom)/5 + 20)
+			.attr("x", (width + margin.left + margin.right)/2 + 202)
+			.style("text-anchor", "end")
+			.text("These charts show data from the Depression Anxiety Stress Scale and Dark Triad tests.");
+		}
 
 		svg.enter()
 	}
@@ -214,7 +232,7 @@
 					.range([height, 0]);
 				y.domain([0, d3.max(bins, function (d) { return d.length })]);
 				// svg.append("g")
-					// .call(d3.axisLeft(y));
+				// .call(d3.axisLeft(y));
 				yAxis.transition().duration(transition_speed).call(d3.axisLeft(y));
 
 				// X axis label
@@ -244,7 +262,7 @@
 					.on("mouseover", function (d) {
 						tooltip.style("visibility", "visible")
 						d3.select(this)
-							.attr("fill","#93c7ed")
+							.attr("fill", "#93c7ed")
 							.style("stroke", "#93c7ed")
 							.style("stroke-width", "3px")
 							.style("stroke-opacity", "0.7");
@@ -259,7 +277,7 @@
 					.on("mouseout", function (d) {
 						tooltip.style("visibility", "hidden");
 						d3.select(this).transition().duration(250)
-							.attr("fill","steelblue")
+							.attr("fill", "steelblue")
 							.style("stroke-opacity", "0");
 					})
 					.transition().duration(transition_speed)
@@ -268,7 +286,7 @@
 					.attr("y", height).transition().duration(transition_speed) // grow from y(0) = height, up.
 					.attr("y", d => y(d.length))
 					.attr("height", d => y(0) - y(d.length));
-					// base histogram: https://observablehq.com/@d3/histogram
+				// base histogram: https://observablehq.com/@d3/histogram
 
 				// Delete extra bars
 				u.exit().remove()
@@ -446,10 +464,10 @@
 					var elements = document.querySelectorAll(":hover");
 					var l = elements.length - 1;
 					var elementData = elements[l].__data__;
-					divTooltip.html(elementData.key + "<br>" + (+(elementData.value*100)).toFixed(3));
+					divTooltip.html(elementData.key + "<br>" + (+(elementData.value * 100)).toFixed(3));
 
 					d3.select(this)
-						.attr("fill",light(d.key))
+						.attr("fill", light(d.key))
 						.style("stroke", light(d.key))
 						.style("stroke-width", "4px")
 						.style("stroke-opacity", "0.90");
