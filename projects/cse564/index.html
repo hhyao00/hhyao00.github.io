@@ -130,18 +130,23 @@
 			svg.append("g")
 			.attr("class", "y axis")
 			.append("text")
-			.attr("y", (height + margin.top + margin.bottom)/5)
-			.attr("x", (width + margin.left + margin.right)/2)
-			.style("text-anchor", "end")
-			.text("^ Hello, please select a chart from the menus above.")
+			.attr("y", 100)
+			.attr("x", 300)
+			.text("^  Hello, please select a chart from the menus above.")
 			
 			svg.append("g")
 			.attr("class", "y axis")
 			.append("text")
-			.attr("y", (height + margin.top + margin.bottom)/5 + 20)
-			.attr("x", (width + margin.left + margin.right)/2 + 202)
-			.style("text-anchor", "end")
+			.attr("y", 120)
+			.attr("x", 300)
 			.text("These charts show data from the Depression Anxiety Stress Scale and Dark Triad tests.");
+
+			svg.append("g")
+			.attr("class", "y axis")
+			.append("text")
+			.attr("y", 140)
+			.attr("x", 300)
+			.text("Mouse over bar charts to show values; click + drag on histograms to change bin size.");
 		}
 
 		svg.enter()
