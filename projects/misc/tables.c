@@ -1,15 +1,15 @@
 // ============================================================================ //
-//  																			//
-// Spring 2018																	//
-//																				//
-// One of the homeworks was to simulate virtual memory with an array			//
-// and to simulate the retrieval and storage of "addresses" ie. converting		//
-// from virtual address to the physical and storing, vice versa, etc. 			//
-//																				//
-// A lot of the students had trouble with this virtual vs physical memory		//
-// storage/retrieval concept so I had wrote this small code chunk was to 		//
-// demonstrate the "program flow" and how things would be stored/represented.	//
-//																				//
+//                                                                              //
+// Spring 2018                                                                  //
+//                                                                              //
+// One of the homeworks was to simulate virtual memory with an array            //
+// and to simulate the retrieval and storage of "addresses" ie. converting      //
+// from virtual address to the physical and storing, vice versa, etc.           //
+//                                                                              //
+// A lot of the students had trouble with this virtual vs physical memory       //
+// storage/retrieval concept so I had wrote this small code chunk was to        //
+// demonstrate the "program flow" and how things would be stored/represented.   //
+//                                                                              //
 // ============================================================================ //
 
 #include <stdio.h>
