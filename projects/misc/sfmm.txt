@@ -1,0 +1,526 @@
+/**
+ * System Fundamentals II - Fall 2017
+ * I am only including this one file to prevent potential plagerism temptations.
+ */
+
+#include "sfmm.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>  // added
+#include <string.h> // added
+
+/** Add a block to the specified free list */
+void* add_block(sf_free_header* b_ptr, free_list *fl);
+
+/** Set up the header and footer of the block about to be allocated */
+void* set_up_block(sf_free_header* b_ptr, size_t b_size, int b_pad, size_t payload, sf_footer *f_ptr);
+
+/** The split off block will be free, create headers for it */
+void* split_off_block(sf_free_header* s_ptr, size_t s_size);
+
+/** Search the lists for a block of bsize or greater */
+void* look_for_block(size_t bsize, int pad_bit, size_t payload);
+
+/** Remove a block from the specified free list */
+void* remove_block(sf_free_header* b_ptr, free_list *fl);
+
+/** Coalesnce two blocks. PTR1 and PTR2 where ptr1 is before ptr2 */
+void* coalesnce_blocks(sf_free_header* ptr1, sf_free_header* ptr2);
+
+/**
+ * You should store the heads of your free lists in these variables.
+ * Doing so will make it accessible via the extern statement in sfmm.h
+ * which will allow you to pass the address to sf_snapshot in a different file.
+ */
+free_list seg_free_list[4] = {
+    {NULL, LIST_1_MIN, LIST_1_MAX},
+    {NULL, LIST_2_MIN, LIST_2_MAX},
+    {NULL, LIST_3_MIN, LIST_3_MAX},
+    {NULL, LIST_4_MIN, LIST_4_MAX}
+};
+
+int sf_errno = 0;
+
+/** copy pasted rip. Return index */
+int find_list_given_size(int sz) {
+    if (sz >= LIST_1_MIN && sz <= LIST_1_MAX) return 0;
+    else if (sz >= LIST_2_MIN && sz <= LIST_2_MAX) return 1;
+    else if (sz >= LIST_3_MIN && sz <= LIST_3_MAX) return 2;
+    else return 3;
+}
+
+
+/* This is your implementation of sf_malloc. It acquires unitialized
+memory that is aligned and padded properly for the underlying system.
+
+@param size The number of bytes requested to be allocated.
+
+@return If successful, the pointer to a valid region of memory of the
+requested size is returned, else NULL is returned and sf_errno set.
+> If the size is invalid ( 0 or greater than 4 pages ), sf_errno is set
+to EINVAL. If the request cannot be satisfied, sf_errno is set to ENOMEM.
+*/
+void *sf_malloc(size_t size) {
+
+    size_t payload = size;  // requested amnt
+    size_t bsize;       //  adjusted block size
+    int pad_bit = 0;
+
+    /* Invalid size=0 or size>4 pages */
+    if( size == 0 || size > 4*PAGE_SZ ){
+        sf_errno = EINVAL;
+        return NULL;
+    }
+
+    /* Adding sizes of header of header and footer
+    because want multiple of 16? for h + p + f */
+    bsize = payload + 8 + 8;
+
+    if(bsize%16 != 0){
+        pad_bit = 1;
+        while(bsize%16 != 0){
+            bsize  = bsize + 1;
+        }
+    }
+
+    // NEW:
+    // i need to check the previous block in memory to see if it is free
+    // if it is free obtain the block size and include that block size
+    // in the newpg size. check for coalesced size instead of just acc. pgs.
+
+    /** Look in the lists for a block of desired size bsize */
+    void* b_ptr = look_for_block(bsize, pad_bit, payload);
+    if( b_ptr != (void*) -1 ){ return (void*) b_ptr+8; }
+
+    /** Else didn't find any suitable blocks in all lists. Get more space */
+    size_t pg_bytes = PAGE_SZ; // total giant block
+    void* new_pg = sf_sbrk();
+
+    /** Account for the size we can coalesce with */
+    sf_footer* lower_block = new_pg - 8;
+
+    size_t p_size = 0;
+    if( ((void*)lower_block) >= get_heap_start() && lower_block->allocated == 0 ){
+        p_size = (lower_block->block_size)<<4;
+    }
+
+    if( bsize > pg_bytes ){
+        while( bsize > (pg_bytes+p_size) ){
+            void* call_pg = sf_sbrk();
+            pg_bytes += PAGE_SZ;
+            if( call_pg == (void*) -1 ){
+                sf_errno = ENOMEM;
+                return NULL; // couldn't get more space.
+            }
+        }
+    }
+
+    /* Check if can coalesnce with the free block behind of new_pg */
+
+    if( ((void*)lower_block) >= get_heap_start() && lower_block->allocated == 0 ){
+
+        /* want to merge. Find the list the block is in. */
+        size_t prev_bsize = (lower_block->block_size)<<4;
+        int fl_index = find_list_given_size(prev_bsize);
+        sf_free_header* prev_ptr = new_pg - (prev_bsize); // point to beginning of prev header
+        remove_block(prev_ptr, &seg_free_list[fl_index]); // remove from it's list.
+
+        sf_free_header *coalesnced_b;
+        sf_free_header * pg_ptr = new_pg;
+        (pg_ptr->header).block_size = pg_bytes>>4;
+
+        coalesnced_b = coalesnce_blocks(prev_ptr, pg_ptr);
+
+        /* now want to add this block to a new list. prev_ptr points to it */
+        size_t coaled_size = (coalesnced_b->header).block_size<<4;
+        int fl_new_index = find_list_given_size(coaled_size);
+        add_block(coalesnced_b, &seg_free_list[fl_new_index]);
+
+        void *block_ptr = look_for_block(bsize, pad_bit, payload); // still want bsize
+
+        return (void*) block_ptr+8;
+    }
+
+    /** Else we have a new page right now pointed to by new_page,
+    Just use it.  and check for splinters. */
+    sf_free_header* block_ptr = new_pg;
+    sf_footer *f_ptr = (void*) block_ptr + bsize - 8;
+
+    /* check for splinter creation */
+    if( (pg_bytes - bsize) >= 32 ){
+        sf_free_header *split_ptr = new_pg + bsize;
+        split_off_block((void*)split_ptr, (pg_bytes-bsize));
+
+    } else {
+        bsize = pg_bytes; // keep, else will create splinter
+        f_ptr = (void*)block_ptr + bsize - 8; // new footer
+        pad_bit = 1;
+    }
+    set_up_block(block_ptr, bsize, pad_bit, payload, f_ptr);
+
+    return (void*) block_ptr+8;
+}
+
+// ------------------------- MALLOC HELPERS BELOW ---------------------- //
+
+/** Returns block pointer if found one, otherwise a -1 */
+void* look_for_block(size_t bsize, int pad_bit, size_t payload){
+
+    /* Search the free lists for a suitable free block */
+    for(int i = 0; i < FREE_LIST_COUNT; i++){
+
+        if( seg_free_list[i].head == NULL || seg_free_list[i].max < bsize){
+            continue;
+        }
+
+        if( (seg_free_list[i].min <= bsize && bsize <= seg_free_list[i].max)
+            || seg_free_list[i].max == (uint16_t) -1
+            || seg_free_list[i].max > bsize ){ // This is so troll. unsigned int as -1.
+
+            // Found the list that bsize falls into. Want to look at head's size,
+            // and if it's size is too small, we go to head.next and look there.
+            // keep looking until next = null I guess.
+            sf_free_header* block_ptr = seg_free_list[i].head;
+
+            while( block_ptr != NULL ){
+                size_t hb_size = (block_ptr->header).block_size;
+                hb_size = (hb_size << 4);
+
+                if( hb_size >= bsize ){ // found nice block
+                    // want to get our chunk and check if splitting needed
+
+                    //footer set up.
+                    sf_footer *f_ptr = (void*)block_ptr + bsize - 8; // goto footer
+
+                    /* check for splitting */
+                    if( (hb_size - bsize) >= 32 ){
+                        split_off_block((void*)block_ptr + bsize, (hb_size-bsize));
+                    } else {
+                       if( hb_size-bsize > 0 ){ pad_bit = 1; }
+
+                       bsize = hb_size; // keep, else create splinter
+                       f_ptr = (void*)block_ptr + bsize - 8;
+                    }
+
+                    remove_block(block_ptr, &seg_free_list[i]);
+                    set_up_block(block_ptr, bsize, pad_bit, payload, f_ptr);
+;
+                    return block_ptr;
+
+                /* ELSE KEEP SEARCHING */
+                } else {
+                    block_ptr = block_ptr->next;
+
+                }
+            } // end while
+        }
+    } // end for loop
+    return (void*) -1;
+}
+
+/** Remove block from list. Returns removed block. */
+void* remove_block(sf_free_header* block_ptr, free_list *fl){
+
+    /* work around the block pointers */
+    if( block_ptr == fl->head ){
+        if (block_ptr->next == NULL){
+            fl->head = NULL;
+        } else {
+            fl->head = block_ptr->next;
+        }
+    }
+    if( block_ptr->next != NULL ){
+        block_ptr->next->prev = block_ptr->prev;
+    }
+
+    if( block_ptr->prev != NULL ){
+        block_ptr->prev->next = block_ptr->next;
+    }
+    return block_ptr;
+}
+
+/** inserting at the head of list **/
+void* add_block(sf_free_header* new_block, free_list *fl){
+
+    if(fl->head != NULL){
+        (new_block->prev) = NULL;
+        (new_block->next) = (fl->head);
+        (fl->head)->prev = new_block;
+        (fl->head) = new_block;
+    } else {
+        (new_block->prev) = NULL;
+        (new_block->next) = NULL;
+        (fl->head) = new_block;
+    }
+
+    return new_block;
+}
+
+void* set_up_block(sf_free_header* block_ptr, size_t bsize, int b_pad, size_t payload, sf_footer *f_ptr){
+    // want to get our chunk and check if splitting needed
+    // so now we have a chunk. set the header.
+    (block_ptr->header).allocated = 1;
+    (block_ptr->header).padded = b_pad;
+    (block_ptr->header).two_zeroes = 0;
+    (block_ptr->header).block_size = bsize>>4;
+
+    // footer set up.
+    f_ptr->allocated = 1;
+    f_ptr->padded = b_pad;
+    f_ptr->two_zeroes = 0;
+    f_ptr->block_size = bsize>>4;
+    f_ptr->requested_size = payload;
+
+    return block_ptr;
+}
+
+
+void* split_off_block(sf_free_header* s_ptr, size_t s_size){
+
+    (s_ptr->header).block_size = s_size>>4;
+    (s_ptr->header).allocated = 0;
+    (s_ptr->header).padded = 0;
+
+    sf_footer *f_ptr = (void*) s_ptr + s_size - 8;
+    (f_ptr->allocated) = 0;
+    (f_ptr->block_size) = s_size>>4;
+    f_ptr->requested_size = 0;
+
+    for(int i = 0; i<FREE_LIST_COUNT; i++){
+        if( (s_size <= seg_free_list[i].max && s_size >= seg_free_list[i].min)
+            || seg_free_list[i].max == -1 ){
+            add_block( s_ptr, &seg_free_list[i]);
+        }
+
+    }
+    return s_ptr;
+}
+
+void* set_up_splitoff(sf_free_header *s_ptr, size_t s_size){
+    (s_ptr->header).block_size = s_size>>4;
+    (s_ptr->header).allocated = 0;
+    (s_ptr->header).padded = 0;
+
+    sf_footer *f_ptr = (void*) s_ptr + s_size - 8;
+    (f_ptr->allocated) = 0;
+    (f_ptr->block_size) = s_size>>4;
+    f_ptr->requested_size = 0;
+
+    return s_ptr;
+}
+
+
+void* coalesnce_blocks(sf_free_header* ptr1, sf_free_header* ptr2){
+
+    size_t new_size = ((ptr1->header).block_size<<4) + ((ptr2->header).block_size<<4);
+
+    (ptr1->header).block_size = new_size>>4;
+    (ptr1->header).allocated = 0;
+    (ptr1->header).padded = 0;
+
+    sf_footer* f_ptr = (void*) ptr1 + new_size - 8;
+    f_ptr->block_size = new_size>>4;
+    f_ptr->allocated = 0;
+    f_ptr->padded = 0;
+
+    return ptr1;
+}
+
+
+// ------------------- END MALLOC --------------------- //
+
+// ------------------- START FREE --------------------- //
+
+/** Marks a dynamically allocated region as no longer in use.
+Adds the newly freed block to the free list.
+
+@param the address of memory returned by the function sf_malloc.
+If the pointer is invalid, the function calls abort() to exit.
+
+After confirming that a valid pointer was given, you must free the block.
+First, determine if the "next" block in memory can be coalesced. If it can,
+remove the "next" block from its free list and combine the blocks. Then,
+determine which list the newly freed block should be placed into. Insert it at
+the head of this list.
+*/
+void sf_free(void *ptr) {
+
+    if( ptr == NULL ){ abort(); }   // if pointer is null
+
+    sf_free_header* b_ptr = ptr - 8 ; // ptr - 8 will give start of heade.
+    size_t b_size = (b_ptr->header).block_size<<4;
+    sf_footer *f_ptr = (void* ) b_ptr + b_size - 8; // start of footer
+
+    /* The header of the block is before heap_start or block ends after heap_end */
+    if( (void*)b_ptr < get_heap_start() || (void*)b_ptr+b_size > get_heap_end() ){
+        abort();
+    }
+
+    /* If alloc bit in header or footer is 0 */
+    if( (b_ptr->header).allocated == 0 || f_ptr->allocated == 0 ){
+        abort();
+    }
+
+    /* The padded and alloc bits in the header and footer are inconsistent. */
+    if( f_ptr->padded != (b_ptr->header).padded
+        || f_ptr->allocated != (b_ptr->header).allocated
+        || f_ptr->block_size != (b_ptr->header).block_size ){
+        abort();
+    }
+
+    /* if req_size + 16 != block_size and pad bit != 1 -> improp config. */
+    if( (f_ptr->requested_size + 16 != (f_ptr->block_size)<<4 && f_ptr->padded != 1 )
+        || (f_ptr->requested_size + 16 == (f_ptr->block_size)<<4 && f_ptr->padded == 1 )){
+        abort();
+    }
+
+    /** Determine if the next block in memory can be coalescned with */
+    sf_free_header *next_ptr = (void*) b_ptr + b_size;
+
+    if( (void*) next_ptr+b_size <= get_heap_end() && (next_ptr->header).allocated == 0 ){
+
+        int index = find_list_given_size( (next_ptr->header).block_size << 4 );
+
+        remove_block(next_ptr, &seg_free_list[index]); // remove it from it's list
+        b_ptr = coalesnce_blocks(b_ptr, next_ptr); // combine it with the one being freed
+
+        // Determine which list it should be placed into.
+        int new_index = find_list_given_size(((b_ptr->header).block_size)<<4);
+        add_block(b_ptr, &seg_free_list[new_index]);
+
+    } else {
+    /** Otherwise just make it's allocated bytes 0 and put it in a list */
+        (b_ptr->header).allocated = 0;
+        (b_ptr->header).padded = 0;
+        (b_ptr->header).two_zeroes = 0;
+        // nothing to do with the size, same size
+
+        f_ptr->allocated = 0;
+        f_ptr->padded = 0;
+        f_ptr->two_zeroes = 0;
+        f_ptr->requested_size = 0;
+        //nothing with size
+
+        int index = find_list_given_size((f_ptr->block_size<<4));
+        add_block(b_ptr, &seg_free_list[index]);
+    }
+
+    return; //nothing. holy shit this function was harder than i thought.
+}
+
+// ------------------------ END FREE ---------------------- //
+// maybe I should've made another c file.
+// I've still got to initiazlie/reset bit fields to 0 in some situations.
+
+// ----------------------- REALLOC START -------------------//
+// --------------------- date: 10.9.2017 -------------------//
+
+void *sf_realloc(void *ptr, size_t size) {
+
+    if( size == 0 ){ sf_free(ptr); return NULL; }
+
+    // ---------- COPY AND PASTE FROM ABOVE BECAUSE I SUCK ------------//
+
+    if( ptr == NULL ){ abort(); }   // if pointer is null
+
+    sf_free_header* b_ptr = ptr - 8 ; // ptr - 8 will give start of heade.
+    size_t b_size = (b_ptr->header).block_size<<4;
+    sf_footer *f_ptr = (void* ) b_ptr + b_size - 8; // start of footer
+
+    /* The header of the block is before heap_start or block ends after heap_end */
+    if( (void*)b_ptr < get_heap_start() || (void*)b_ptr+b_size > get_heap_end() ){
+        abort();
+    }
+
+    /* If alloc bit in header or footer is 0 */
+    if( (b_ptr->header).allocated == 0 || f_ptr->allocated == 0 ){
+        abort();
+    }
+
+    /* The padded and alloc bits in the header and footer are inconsistent. */
+    if( f_ptr->padded != (b_ptr->header).padded
+        || f_ptr->allocated != (b_ptr->header).allocated
+        || f_ptr->block_size != (b_ptr->header).block_size ){
+        abort();
+    }
+
+    /* if req_size + 16 != block_size and pad bit != 1 -> improp config. */
+    if( (f_ptr->requested_size + 16 != (f_ptr->block_size)<<4 && f_ptr->padded != 1 )
+        || (f_ptr->requested_size + 16 == (f_ptr->block_size)<<4 && f_ptr->padded == 1 )){
+        abort();
+    }
+
+    // --------------------------------- end of ptr checking ------- //
+
+    /**
+        Call sf_malloc to obtain a larger block
+        Call memcpy to copy the data in the block given by the user to the block
+        returned by sf_malloc
+        Call sf_free on the block given by the user (coalescing if necessary)
+        Return the block given to you by sf_malloc to the user
+
+        If sf_malloc returns NULL, sf_realloc must also return NULL. Note that
+        you do not need to set sf_errno in sf_realloc because sf_malloc should
+        take care of this.
+    */
+
+    if( size == f_ptr->requested_size ){ return (void*) ptr; } // same size, no point.
+
+    if( size > f_ptr->requested_size ){ // going to larger size
+
+        void* new_ptr =  sf_malloc(size);
+
+        if( new_ptr == NULL ){ return NULL; }
+
+        new_ptr = memcpy(new_ptr, ptr, f_ptr->requested_size);
+        sf_free(ptr);
+
+        return (void*) new_ptr; // should already point to payload
+
+    } else { // going to smaller size
+
+        int new_size = size + 16;  // block size of potential smaller block
+        int pad = 0;
+
+        while(new_size%16 != 0){
+            pad = 1;
+            new_size+=1;
+        }
+
+        /** would result in splinter, so just update footer req size and return. **/
+        if( b_size - new_size < 32 ){
+
+            f_ptr->requested_size = size;
+            f_ptr->padded = 1;
+
+            (b_ptr->header).padded = 1;
+
+        } else { // no splinter
+
+            sf_footer* new_footer = (void*) b_ptr + new_size - 8;
+            b_ptr = set_up_block(b_ptr, new_size, pad, size, new_footer);
+
+            /** Do the split off **/
+            // must cast to void .-.
+            sf_free_header* spliter = set_up_splitoff((void*) b_ptr + new_size, (b_size - new_size));
+
+            sf_free_header* next_ptr = (void*) spliter + ((spliter->header.block_size)<<4);
+
+            if( (void*) next_ptr+(next_ptr->header.block_size) <= get_heap_end() && (next_ptr->header).allocated == 0 ){
+
+                int index = find_list_given_size( (next_ptr->header).block_size << 4 );
+                remove_block(next_ptr, &seg_free_list[index]); // remove it from it's list
+                spliter = coalesnce_blocks(spliter, next_ptr); // combine it with the one being freed
+
+                // Determine which list it should be placed into.
+                int new_index = find_list_given_size(((spliter->header).block_size)<<4);
+                add_block(spliter, &seg_free_list[new_index]);
+            } // end splitter coalesnce
+
+            return (void*) b_ptr + 8 ;
+
+            }
+        }
+    return ptr;
+}
+
