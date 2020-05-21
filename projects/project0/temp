@@ -1,0 +1,4 @@
+      // Create a color scale
+      var color = d3.scaleLinear()
+        .domain([-1, 0, 1])
+        .range(["#B22222", "#e6e3e3", "#000080"]);
